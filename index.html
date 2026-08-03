@@ -1,0 +1,1260 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Registre des Activités Mensuelles</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
+<style>
+  :root{
+    --bg:#EEF2F0;
+    --card:#FFFFFF;
+    --ink:#16231F;
+    --ink-soft:#4B5D57;
+    --line:#D6DFDA;
+    --primary:#0B4F4A;
+    --primary-dark:#083A36;
+    --accent:#D2A339;
+    --accent-soft:#F3E3B8;
+    --success:#2E7D5B;
+    --success-bg:#E5F2EA;
+    --danger:#B23B2E;
+    --danger-bg:#FBEAE7;
+    --wait:#8A6D1F;
+    --wait-bg:#FBF1DA;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:'Inter',sans-serif;
+    line-height:1.45;
+  }
+  .mono{font-family:'IBM Plex Mono',monospace; font-variant-numeric:tabular-nums;}
+  h1,h2,h3{font-family:'Fraunces',serif; margin:0; color:var(--primary-dark);}
+  .app{max-width:1180px; margin:0 auto; padding:28px 20px 60px;}
+  header.top{
+    display:flex; align-items:flex-end; justify-content:space-between; gap:16px;
+    border-bottom:3px solid var(--primary); padding-bottom:16px; margin-bottom:22px;
+    flex-wrap:wrap;
+  }
+  header.top .stamp{
+    font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.12em;
+    color:var(--primary); background:var(--accent-soft); border:1px solid var(--accent);
+    padding:4px 10px; border-radius:3px; text-transform:uppercase;
+  }
+  header.top h1{font-size:28px; font-weight:600;}
+  header.top p{margin:4px 0 0; color:var(--ink-soft); font-size:13.5px;}
+
+  nav.tabs{display:flex; gap:4px; margin-bottom:22px; border-bottom:1px solid var(--line);}
+  nav.tabs button{
+    font-family:'Inter',sans-serif; font-weight:600; font-size:14px;
+    background:none; border:none; padding:12px 18px; cursor:pointer;
+    color:var(--ink-soft); position:relative; border-bottom:3px solid transparent;
+    transition:color .15s;
+  }
+  nav.tabs button.active{color:var(--primary-dark); border-bottom-color:var(--accent);}
+  nav.tabs button:hover{color:var(--primary-dark);}
+
+  section.panel{display:none;}
+  section.panel.active{display:block; animation:fade .25s ease;}
+  @keyframes fade{from{opacity:0; transform:translateY(4px);} to{opacity:1; transform:translateY(0);}}
+
+  .card{
+    background:var(--card); border:1px solid var(--line); border-radius:8px;
+    padding:22px; margin-bottom:22px; box-shadow:0 1px 2px rgba(15,40,35,.04);
+  }
+  .card h2{font-size:19px; margin-bottom:14px;}
+  .period-select{display:flex; gap:14px; align-items:center; flex-wrap:wrap;}
+  .period-select label{font-size:13px; font-weight:600; color:var(--ink-soft);}
+  select, input[type=text], input[type=number], input[type=date], textarea{
+    font-family:'Inter',sans-serif; font-size:14px; padding:9px 11px;
+    border:1px solid var(--line); border-radius:5px; background:#fff; color:var(--ink);
+    width:100%;
+  }
+  input[type=number], input[type=date]{font-family:'IBM Plex Mono',monospace;}
+  textarea{resize:vertical; min-height:70px;}
+  select:focus, input:focus, textarea:focus{outline:2px solid var(--accent); outline-offset:1px; border-color:var(--accent);}
+
+  .field{margin-bottom:15px;}
+  .field label{display:block; font-size:13px; font-weight:600; margin-bottom:5px; color:var(--primary-dark);}
+  .field .req{color:var(--danger); margin-left:2px;}
+  .grid2{display:grid; grid-template-columns:1fr 1fr; gap:16px;}
+  @media (max-width:640px){.grid2{grid-template-columns:1fr;}}
+
+  fieldset.periode-box{border:1px dashed var(--line); border-radius:6px; padding:14px; margin-top:4px;}
+  fieldset.periode-box legend{font-size:12px; font-weight:600; color:var(--ink-soft); padding:0 6px;}
+  .periode-mode{display:flex; gap:16px; margin-bottom:10px; font-size:13.5px;}
+  .periode-mode label{display:flex; align-items:center; gap:6px; font-weight:500; color:var(--ink);}
+  .periode-inputs{display:flex; gap:10px; align-items:end; flex-wrap:wrap;}
+  .periode-inputs > div{flex:1; min-width:150px;}
+  .btn-add-periode{
+    background:var(--primary); color:#fff; border:none; padding:9px 14px; border-radius:5px;
+    font-weight:600; font-size:13px; cursor:pointer; white-space:nowrap;
+  }
+  .btn-add-periode:hover{background:var(--primary-dark);}
+  .chips{display:flex; flex-wrap:wrap; gap:8px; margin-top:12px;}
+  .chip{
+    background:var(--accent-soft); border:1px solid var(--accent); color:var(--primary-dark);
+    font-family:'IBM Plex Mono',monospace; font-size:12.5px; padding:5px 8px 5px 10px;
+    border-radius:20px; display:flex; align-items:center; gap:8px;
+  }
+  .chip button{background:none; border:none; cursor:pointer; color:var(--danger); font-weight:700; font-size:13px; line-height:1;}
+
+  .btn-primary{
+    background:var(--primary); color:#fff; border:none; padding:11px 20px; border-radius:6px;
+    font-weight:700; font-size:14.5px; cursor:pointer; font-family:'Inter',sans-serif;
+  }
+  .btn-primary:hover{background:var(--primary-dark);}
+  .btn-secondary{
+    background:#fff; color:var(--primary-dark); border:1.5px solid var(--primary); padding:10px 18px;
+    border-radius:6px; font-weight:700; font-size:14px; cursor:pointer;
+  }
+  .btn-secondary:hover{background:var(--success-bg);}
+  .btn-ghost{background:none; border:1px solid var(--line); color:var(--ink-soft); padding:6px 10px; border-radius:5px; font-size:12.5px; cursor:pointer;}
+  .btn-ghost:hover{border-color:var(--danger); color:var(--danger);}
+
+  .actions-row{display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:10px;}
+  .actions-row .selectors{display:flex; gap:10px; align-items:center;}
+  .actions-row .selectors select{width:auto;}
+
+  table{width:100%; border-collapse:collapse; font-size:13px;}
+  thead th{
+    background:var(--primary); color:#fff; text-align:left; padding:10px 8px;
+    font-weight:600; font-size:12.5px; letter-spacing:.02em;
+  }
+  tbody td{padding:9px 8px; border-bottom:1px solid var(--line); vertical-align:top;}
+  tbody tr:nth-child(even){background:#F7FAF8;}
+  tbody tr:hover{background:var(--accent-soft);}
+  td.num, th.num{font-family:'IBM Plex Mono',monospace; text-align:right;}
+  .empty-state{
+    text-align:center; padding:30px 10px; color:var(--ink-soft); font-size:14px;
+    border:1px dashed var(--line); border-radius:6px; background:#fbfcfb;
+  }
+  .table-title{font-family:'Fraunces',serif; font-size:18px; color:var(--primary-dark); margin-bottom:12px; text-transform:uppercase; letter-spacing:.03em; border-left:4px solid var(--accent); padding-left:10px;}
+
+  select.statut-select{padding:6px 8px; font-size:12.5px;}
+  .badge{display:inline-block; padding:3px 9px; border-radius:20px; font-size:11.5px; font-weight:700;}
+  .badge.ok{background:var(--success-bg); color:var(--success);}
+  .badge.ko{background:var(--danger-bg); color:var(--danger);}
+  .badge.wait{background:var(--wait-bg); color:var(--wait);}
+
+  .dash-year{display:flex; align-items:center; gap:10px; margin-bottom:18px;}
+  .dash-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:22px;}
+  @media (max-width:800px){.dash-grid{grid-template-columns:repeat(2,1fr);}}
+  .kpi{background:#fff; border:1px solid var(--line); border-radius:8px; padding:16px;}
+  .kpi .lbl{font-size:12px; color:var(--ink-soft); font-weight:600; text-transform:uppercase; letter-spacing:.03em;}
+  .kpi .val{font-family:'IBM Plex Mono',monospace; font-size:26px; font-weight:600; color:var(--primary-dark); margin-top:4px;}
+
+  .bar-row{display:grid; grid-template-columns:110px 1fr 60px; align-items:center; gap:10px; padding:6px 0;}
+  .bar-row .month-lbl{font-size:13px; font-weight:600;}
+  .bar-track{background:#E4EAE7; border-radius:4px; height:16px; overflow:hidden; position:relative;}
+  .bar-fill{height:100%; background:linear-gradient(90deg,var(--primary),var(--accent)); border-radius:4px 0 0 4px; transition:width .4s ease;}
+  .bar-row .pct{font-family:'IBM Plex Mono',monospace; font-size:12.5px; text-align:right;}
+
+  .toast{
+    position:fixed; bottom:20px; right:20px; background:var(--primary-dark); color:#fff;
+    padding:12px 18px; border-radius:6px; font-size:13.5px; font-weight:600; box-shadow:0 4px 14px rgba(0,0,0,.2);
+    opacity:0; transform:translateY(10px); transition:all .25s; pointer-events:none; z-index:99;
+  }
+  .toast.show{opacity:1; transform:translateY(0);}
+
+  /* ---------- Admin bar ---------- */
+  .admin-bar{display:flex; align-items:center; gap:10px; flex-wrap:wrap; justify-content:flex-end;}
+  .admin-status{
+    font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--primary-dark);
+    background:var(--success-bg); border:1px solid var(--success); padding:5px 10px; border-radius:20px;
+    display:flex; align-items:center; gap:6px;
+  }
+  .admin-status .dot{width:7px; height:7px; border-radius:50%; background:var(--success); display:inline-block;}
+  .btn-admin{
+    background:#fff; color:var(--primary-dark); border:1.5px solid var(--primary); padding:8px 14px;
+    border-radius:6px; font-weight:700; font-size:12.5px; cursor:pointer;
+  }
+  .btn-admin:hover{background:var(--success-bg);}
+  .btn-admin.logout{border-color:var(--danger); color:var(--danger);}
+  .btn-admin.logout:hover{background:var(--danger-bg);}
+  .lock-note{font-size:11.5px; color:var(--ink-soft); font-style:italic;}
+
+  /* ---------- Modal ---------- */
+  .modal-overlay{
+    position:fixed; inset:0; background:rgba(11,30,26,.55); display:none;
+    align-items:center; justify-content:center; z-index:200; padding:20px;
+  }
+  .modal-overlay.show{display:flex;}
+  .modal-box{
+    background:#fff; border-radius:10px; padding:26px; width:100%; max-width:400px;
+    box-shadow:0 10px 40px rgba(0,0,0,.25);
+  }
+  .modal-box h3{font-size:18px; margin-bottom:6px;}
+  .modal-box p.sub{font-size:12.5px; color:var(--ink-soft); margin:0 0 16px;}
+  .modal-box .field{margin-bottom:13px;}
+  .modal-actions{display:flex; justify-content:flex-end; gap:10px; margin-top:18px;}
+  .modal-link{background:none; border:none; color:var(--primary); font-size:12.5px; cursor:pointer; text-decoration:underline; padding:0;}
+  .modal-error{color:var(--danger); font-size:12.5px; margin-top:-6px; margin-bottom:10px; display:none;}
+  .modal-error.show{display:block;}
+  .footnote{font-size:11.5px; color:var(--ink-soft); margin-top:8px;}
+  .loading{padding:40px; text-align:center; color:var(--ink-soft);}
+  .reset-zone{margin-top:30px; text-align:right;}
+  input.inline-cost, input.inline-reason{padding:6px 8px; font-size:12.5px;}
+</style>
+</head>
+<body>
+<div class="app" id="config-missing-screen" style="display:none;">
+  <div class="card" style="max-width:640px; margin:60px auto;">
+    <h2>⚙️ Configuration requise</h2>
+    <p style="margin-top:10px;">Cette application a besoin d'un projet Firebase gratuit pour que les utilisateurs partagent leurs données. Les identifiants Firebase (<code>FIREBASE_CONFIG</code>) n'ont pas encore été renseignés dans le fichier.</p>
+    <p style="margin-top:10px;">Ouvrez le fichier HTML dans un éditeur de texte, cherchez <code>const FIREBASE_CONFIG</code> près du début du script, et remplacez les valeurs par celles de votre projet Firebase (voir le guide d'installation fourni séparément).</p>
+  </div>
+</div>
+<div class="app" id="main-app">
+
+
+  <header class="top">
+    <div>
+      <span class="stamp">Registre officiel &mdash; Suivi des activités</span>
+      <h1>Planification &amp; Réalisation des Activités Mensuelles</h1>
+      <p>Toutes les rubriques sont obligatoires à la saisie. Les données sont partagées entre tous les utilisateurs de ce registre. Seul l'administrateur connecté peut exporter les fichiers Excel.</p>
+    </div>
+    <div class="admin-bar" id="admin-bar"></div>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab-btn active" data-tab="plan">Planification</button>
+    <button class="tab-btn" data-tab="valid">Validation des activités</button>
+    <button class="tab-btn" data-tab="dash">Tableau de bord</button>
+  </nav>
+
+  <!-- ===================== PLANIFICATION ===================== -->
+  <section class="panel active" id="panel-plan">
+    <div class="card">
+      <h2>Nouvelle activité</h2>
+      <div class="grid2">
+        <div class="field">
+          <label>Mois de planification <span class="req">*</span></label>
+          <select id="plan-month"></select>
+        </div>
+        <div class="field">
+          <label>Année <span class="req">*</span></label>
+          <input type="number" id="plan-year" min="2020" max="2100">
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Titre de l'activité <span class="req">*</span></label>
+        <textarea id="f-titre" placeholder="Ex : Organisation des sessions de dialogue communautaire dans les arrondissements..."></textarea>
+      </div>
+
+      <div class="grid2">
+        <div class="field">
+          <label>Catégorisation <span class="req">*</span></label>
+          <select id="f-categorisation">
+            <option value="">-- Choisir --</option>
+            <option>Mission interne</option>
+            <option>Mission externe</option>
+            <option>Formation</option>
+            <option>Supervision</option>
+            <option>Sensibilisation communautaire</option>
+            <option>Réunion / Coordination</option>
+            <option value="__autre">Autre (préciser)</option>
+          </select>
+          <input type="text" id="f-categorisation-autre" placeholder="Précisez la catégorisation" style="margin-top:8px; display:none;">
+        </div>
+        <div class="field">
+          <label>Structure responsable <span class="req">*</span></label>
+          <input type="text" id="f-structure" placeholder="Ex : ZS DAA">
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Résultats attendus <span class="req">*</span></label>
+        <textarea id="f-resultats" placeholder="Un résultat par ligne, ex :&#10;- Rapport détaillé des causes identifiées&#10;- Plan d'action communautaire coconstruit"></textarea>
+      </div>
+
+      <div class="grid2">
+        <div class="field">
+          <label>Sources de vérification <span class="req">*</span></label>
+          <input type="text" id="f-sources" placeholder="Ex : OM, supervision, rapport">
+        </div>
+        <div class="field">
+          <label>Source de financement <span class="req">*</span></label>
+          <input type="text" id="f-financement" placeholder="Ex : Initiative ISHR">
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Coût prévu (FCFA) <span class="req">*</span></label>
+        <input type="number" id="f-cout-prevu" min="0" step="1" placeholder="Ex : 495000">
+      </div>
+
+      <div class="field">
+        <label>Période de réalisation <span class="req">*</span></label>
+        <fieldset class="periode-box">
+          <legend>Ajouter une ou plusieurs dates / plages</legend>
+          <div class="periode-mode">
+            <label><input type="radio" name="periode-mode" value="date" checked> Date isolée</label>
+            <label><input type="radio" name="periode-mode" value="plage"> Plage de dates</label>
+          </div>
+          <div class="periode-inputs" id="periode-date-inputs">
+            <div><label style="font-size:12px;color:var(--ink-soft);">Date</label><input type="date" id="p-date"></div>
+            <button type="button" class="btn-add-periode" id="btn-add-date">+ Ajouter la date</button>
+          </div>
+          <div class="periode-inputs" id="periode-plage-inputs" style="display:none;">
+            <div><label style="font-size:12px;color:var(--ink-soft);">Début</label><input type="date" id="p-start"></div>
+            <div><label style="font-size:12px;color:var(--ink-soft);">Fin</label><input type="date" id="p-end"></div>
+            <button type="button" class="btn-add-periode" id="btn-add-plage">+ Ajouter la plage</button>
+          </div>
+          <div class="chips" id="periode-chips"></div>
+        </fieldset>
+      </div>
+
+      <div style="margin-top:18px;">
+        <button class="btn-primary" id="btn-save-activity">Enregistrer l'activité</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Importer des activités depuis Excel</h2>
+      <p class="footnote">Utile pour saisir plusieurs activités d'un coup. Téléchargez le modèle, remplissez une ligne par activité, puis importez le fichier. Chaque ligne devient une activité « En attente ».</p>
+      <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:12px;">
+        <button class="btn-ghost" id="btn-download-template">⬇ Télécharger le modèle d'import</button>
+        <button class="btn-secondary" id="btn-import-plan">⬆ Importer un fichier Excel</button>
+        <input type="file" id="import-plan-file" accept=".xlsx" style="display:none;">
+      </div>
+      <div id="import-result" style="margin-top:12px;"></div>
+    </div>
+
+    <div class="card">
+      <div class="actions-row">
+        <div id="plan-table-title" class="table-title">Planification des activités du mois de ...</div>
+        <div class="selectors" style="flex-direction:column; align-items:flex-end; gap:4px;">
+          <button class="btn-secondary" id="btn-export-plan">⬇ Télécharger en Excel</button>
+          <span class="lock-note" id="lock-note-plan" style="display:none;">🔒 Réservé à l'administrateur connecté</span>
+        </div>
+      </div>
+      <div id="plan-table-wrap"></div>
+    </div>
+  </section>
+
+  <!-- ===================== VALIDATION ===================== -->
+  <section class="panel" id="panel-valid">
+    <div class="card">
+      <div class="actions-row">
+        <div>
+          <h2 style="margin-bottom:2px;">Validation des activités</h2>
+          <p class="footnote">Sélectionnez le mois à valider, précisez si chaque activité a été réalisée, son coût réel, ou la raison de non-réalisation.</p>
+        </div>
+        <div class="selectors">
+          <select id="valid-month"></select>
+          <input type="number" id="valid-year" min="2020" max="2100" style="width:100px;">
+        </div>
+      </div>
+      <div id="valid-table-wrap"></div>
+      <div style="margin-top:16px; display:flex; gap:10px; flex-wrap:wrap;">
+        <button class="btn-primary" id="btn-save-validation">Enregistrer les validations</button>
+        <button class="btn-secondary" id="btn-export-valid">⬇ Télécharger le tableau synthèse</button>
+        <span class="lock-note" id="lock-note-valid" style="display:none; align-self:center;">🔒 Réservé à l'administrateur connecté</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== DASHBOARD ===================== -->
+  <section class="panel" id="panel-dash">
+    <div class="card">
+      <div class="dash-year">
+        <h2 style="font-size:17px;">Taux de réalisation des activités &mdash; Année</h2>
+        <input type="number" id="dash-year" min="2020" max="2100" style="width:110px;">
+      </div>
+
+      <div class="dash-grid" id="dash-kpis"></div>
+      <div id="dash-bars"></div>
+    </div>
+  </section>
+
+  <div class="reset-zone">
+    <button class="btn-ghost" id="btn-reset">Réinitialiser toutes les données du registre</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- ===================== MODAL ADMIN ===================== -->
+<div class="modal-overlay" id="admin-modal-overlay">
+  <div class="modal-box" id="admin-modal-box">
+    <!-- rempli dynamiquement en JS selon le mode (setup / login / changer mdp) -->
+  </div>
+</div>
+
+<script>
+// =====================================================================
+// CONFIGURATION FIREBASE — à remplacer par les identifiants de VOTRE
+// projet Firebase gratuit (voir le guide d'installation).
+// Ces valeurs sont publiques par nature (ce n'est pas un mot de passe) :
+// la sécurité réelle se règle dans les "règles" Firestore.
+// =====================================================================
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyDonbVkfg_8T9a64sVGcVViCDBwMVSPvEQ",
+  authDomain: "planification-95014.firebaseapp.com",
+  projectId: "planification-95014",
+  storageBucket: "planification-95014.firebasestorage.app",
+  messagingSenderId: "754827662108",
+  appId: "1:754827662108:web:f228b1c49fd63d7580a0d9"
+};
+
+const MONTHS = ["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];
+const now = new Date();
+let activities = [];
+let dataReady = false;
+let db = null;
+
+function isFirebaseConfigured(){
+  return FIREBASE_CONFIG.apiKey && !FIREBASE_CONFIG.apiKey.startsWith('REMPLACER');
+}
+
+// ---------- Storage helpers (Firebase Firestore) ----------
+async function loadActivities(){
+  try{
+    const snap = await db.collection('registre').doc('activities').get();
+    activities = (snap.exists && snap.data().list) ? snap.data().list : [];
+  }catch(e){
+    activities = [];
+  }
+  dataReady = true;
+}
+async function saveActivities(){
+  try{
+    await db.collection('registre').doc('activities').set({list: activities});
+  }catch(e){
+    showToast("Erreur lors de la sauvegarde des données.");
+  }
+}
+// Synchronisation en temps réel : quand un autre utilisateur enregistre,
+// tout le monde voit la mise à jour sans avoir à recharger la page.
+function listenActivitiesRealtime(){
+  db.collection('registre').doc('activities').onSnapshot(snap=>{
+    if(!dataReady) return; // ignore le tout premier événement, déjà traité par loadActivities
+    activities = (snap.exists && snap.data().list) ? snap.data().list : [];
+    renderPlanTable(); renderValidationTable(); renderDashboard();
+  });
+}
+
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2200);
+}
+function uid(){ return 'act_'+Date.now()+'_'+Math.random().toString(36).slice(2,8); }
+
+// =====================================================================
+// ---------- Administration : compte protégé par identifiants ----------
+// =====================================================================
+// Remarque de sécurité : ceci est une protection applicative côté client
+// (le mot de passe n'est jamais stocké en clair, uniquement son empreinte
+// SHA-256, dans le stockage partagé). Elle empêche les utilisateurs
+// normaux d'exporter les fichiers, mais ne remplace pas une authentification
+// serveur pour des données hautement confidentielles.
+
+let adminAuthConfig = null; // {username, passwordHash} — stocké en partagé
+let isAdminLoggedIn = false; // état de session, en mémoire uniquement
+let currentAdminUsername = '';
+
+async function sha256Hex(text){
+  const enc = new TextEncoder().encode(text);
+  const buf = await crypto.subtle.digest('SHA-256', enc);
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+async function loadAdminConfig(){
+  try{
+    const snap = await db.collection('registre').doc('admin_auth').get();
+    adminAuthConfig = snap.exists ? snap.data() : null;
+  }catch(e){
+    adminAuthConfig = null;
+  }
+}
+async function saveAdminConfig(cfg){
+  adminAuthConfig = cfg;
+  await db.collection('registre').doc('admin_auth').set(cfg);
+}
+
+function renderAdminBar(){
+  const bar = document.getElementById('admin-bar');
+  if(isAdminLoggedIn){
+    bar.innerHTML = `
+      <span class="admin-status"><span class="dot"></span> Administrateur : ${escapeHtml(currentAdminUsername)}</span>
+      <button class="btn-admin" id="btn-admin-change-pass">Changer le mot de passe</button>
+      <button class="btn-admin logout" id="btn-admin-logout">Se déconnecter</button>`;
+    document.getElementById('btn-admin-logout').addEventListener('click', ()=>{
+      isAdminLoggedIn = false; currentAdminUsername = '';
+      renderAdminBar(); updateExportLocks();
+      showToast("Déconnecté du compte administrateur.");
+    });
+    document.getElementById('btn-admin-change-pass').addEventListener('click', openChangePasswordModal);
+  } else {
+    bar.innerHTML = `<button class="btn-admin" id="btn-admin-login">🔑 Connexion administrateur</button>`;
+    document.getElementById('btn-admin-login').addEventListener('click', ()=>{
+      if(!adminAuthConfig) openSetupModal(); else openLoginModal();
+    });
+  }
+  updateExportLocks();
+}
+
+function updateExportLocks(){
+  document.getElementById('btn-export-plan').style.display = isAdminLoggedIn ? '' : 'none';
+  document.getElementById('btn-export-valid').style.display = isAdminLoggedIn ? '' : 'none';
+  document.getElementById('lock-note-plan').style.display = isAdminLoggedIn ? 'none' : '';
+  document.getElementById('lock-note-valid').style.display = isAdminLoggedIn ? 'none' : '';
+}
+
+const modalOverlay = document.getElementById('admin-modal-overlay');
+const modalBox = document.getElementById('admin-modal-box');
+function closeModal(){ modalOverlay.classList.remove('show'); modalBox.innerHTML=''; }
+modalOverlay.addEventListener('click', (e)=>{ if(e.target === modalOverlay) closeModal(); });
+
+// ----- Première configuration du compte administrateur -----
+function openSetupModal(){
+  modalBox.innerHTML = `
+    <h3>Créer le compte administrateur</h3>
+    <p class="sub">Aucun compte n'existe encore. Définissez les identifiants qui permettront d'exporter les fichiers Excel. Conservez-les précieusement.</p>
+    <div class="field"><label>Identifiant</label><input type="text" id="setup-user" placeholder="Ex : admin"></div>
+    <div class="field"><label>Mot de passe (6 caractères min.)</label><input type="text" id="setup-pass"></div>
+    <div class="field"><label>Confirmer le mot de passe</label><input type="text" id="setup-pass2"></div>
+    <div class="modal-error" id="setup-error"></div>
+    <div class="modal-actions">
+      <button class="btn-secondary" id="setup-cancel">Annuler</button>
+      <button class="btn-primary" id="setup-confirm">Créer le compte</button>
+    </div>`;
+  modalOverlay.classList.add('show');
+  document.getElementById('setup-cancel').addEventListener('click', closeModal);
+  document.getElementById('setup-confirm').addEventListener('click', async ()=>{
+    const user = document.getElementById('setup-user').value.trim();
+    const pass = document.getElementById('setup-pass').value;
+    const pass2 = document.getElementById('setup-pass2').value;
+    const errEl = document.getElementById('setup-error');
+    if(!user || !pass){ errEl.textContent="Identifiant et mot de passe requis."; errEl.classList.add('show'); return; }
+    if(pass.length < 6){ errEl.textContent="Le mot de passe doit contenir au moins 6 caractères."; errEl.classList.add('show'); return; }
+    if(pass !== pass2){ errEl.textContent="Les mots de passe ne correspondent pas."; errEl.classList.add('show'); return; }
+    const passwordHash = await sha256Hex(pass);
+    await saveAdminConfig({username:user, passwordHash});
+    isAdminLoggedIn = true; currentAdminUsername = user;
+    closeModal(); renderAdminBar();
+    showToast("Compte administrateur créé. Vous êtes connecté.");
+  });
+}
+
+// ----- Connexion -----
+function openLoginModal(){
+  modalBox.innerHTML = `
+    <h3>Connexion administrateur</h3>
+    <p class="sub">Saisissez vos identifiants pour débloquer l'export Excel.</p>
+    <div class="field"><label>Identifiant</label><input type="text" id="login-user"></div>
+    <div class="field"><label>Mot de passe</label><input type="text" id="login-pass"></div>
+    <div class="modal-error" id="login-error"></div>
+    <div class="modal-actions">
+      <button class="btn-secondary" id="login-cancel">Annuler</button>
+      <button class="btn-primary" id="login-confirm">Se connecter</button>
+    </div>`;
+  modalOverlay.classList.add('show');
+  document.getElementById('login-cancel').addEventListener('click', closeModal);
+  const doLogin = async ()=>{
+    const user = document.getElementById('login-user').value.trim();
+    const pass = document.getElementById('login-pass').value;
+    const errEl = document.getElementById('login-error');
+    const hash = await sha256Hex(pass);
+    if(adminAuthConfig && user === adminAuthConfig.username && hash === adminAuthConfig.passwordHash){
+      isAdminLoggedIn = true; currentAdminUsername = user;
+      closeModal(); renderAdminBar();
+      showToast("Connecté en tant qu'administrateur.");
+    } else {
+      errEl.textContent = "Identifiant ou mot de passe incorrect.";
+      errEl.classList.add('show');
+    }
+  };
+  document.getElementById('login-confirm').addEventListener('click', doLogin);
+  modalBox.querySelectorAll('input').forEach(inp=>{
+    inp.addEventListener('keydown', e=>{ if(e.key==='Enter') doLogin(); });
+  });
+}
+
+// ----- Changer le mot de passe (admin déjà connecté) -----
+function openChangePasswordModal(){
+  modalBox.innerHTML = `
+    <h3>Changer le mot de passe</h3>
+    <p class="sub">Compte : ${escapeHtml(currentAdminUsername)}</p>
+    <div class="field"><label>Mot de passe actuel</label><input type="text" id="cp-old"></div>
+    <div class="field"><label>Nouveau mot de passe (6 caractères min.)</label><input type="text" id="cp-new"></div>
+    <div class="field"><label>Confirmer le nouveau mot de passe</label><input type="text" id="cp-new2"></div>
+    <div class="modal-error" id="cp-error"></div>
+    <div class="modal-actions">
+      <button class="btn-secondary" id="cp-cancel">Annuler</button>
+      <button class="btn-primary" id="cp-confirm">Enregistrer</button>
+    </div>`;
+  modalOverlay.classList.add('show');
+  document.getElementById('cp-cancel').addEventListener('click', closeModal);
+  document.getElementById('cp-confirm').addEventListener('click', async ()=>{
+    const oldPass = document.getElementById('cp-old').value;
+    const newPass = document.getElementById('cp-new').value;
+    const newPass2 = document.getElementById('cp-new2').value;
+    const errEl = document.getElementById('cp-error');
+    const oldHash = await sha256Hex(oldPass);
+    if(oldHash !== adminAuthConfig.passwordHash){ errEl.textContent="Mot de passe actuel incorrect."; errEl.classList.add('show'); return; }
+    if(newPass.length < 6){ errEl.textContent="Le nouveau mot de passe doit contenir au moins 6 caractères."; errEl.classList.add('show'); return; }
+    if(newPass !== newPass2){ errEl.textContent="Les nouveaux mots de passe ne correspondent pas."; errEl.classList.add('show'); return; }
+    const passwordHash = await sha256Hex(newPass);
+    await saveAdminConfig({username:adminAuthConfig.username, passwordHash});
+    closeModal();
+    showToast("Mot de passe mis à jour.");
+  });
+}
+
+// ---------- Date formatting ----------
+function pad(n){ return n<10 ? '0'+n : ''+n; }
+function fmtDateFR(iso){
+  if(!iso) return '';
+  const [y,m,d] = iso.split('-').map(Number);
+  return `${d} ${MONTHS[m-1]} ${y}`;
+}
+function fmtDateShort(iso){
+  if(!iso) return '';
+  const [y,m,d] = iso.split('-').map(Number);
+  return `${pad(d)}/${pad(m)}/${y}`;
+}
+function formatPeriodeSegments(segments){
+  if(!segments || !segments.length) return '';
+  return segments.map(seg=>{
+    if(seg.type === 'date') return fmtDateFR(seg.date);
+    const [y1,m1] = seg.start.split('-').map(Number);
+    const [y2,m2] = seg.end.split('-').map(Number);
+    const [,,d2] = seg.end.split('-');
+    if(y1===y2 && m1===m2){
+      const d1 = seg.start.split('-')[2];
+      return `${parseInt(d1)} au ${parseInt(d2)} ${MONTHS[m1-1]} ${y1}`;
+    }
+    return `${fmtDateFR(seg.start)} au ${fmtDateFR(seg.end)}`;
+  }).join(' ; ');
+}
+function fmtMoney(n){
+  if(n === null || n === undefined || n === '') return '';
+  return Number(n).toLocaleString('fr-FR') + ' FCFA';
+}
+
+// ---------- Tabs ----------
+document.querySelectorAll('.tab-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('panel-'+btn.dataset.tab).classList.add('active');
+    if(btn.dataset.tab === 'valid') renderValidationTable();
+    if(btn.dataset.tab === 'dash') renderDashboard();
+  });
+});
+
+// ---------- Populate month selects ----------
+function fillMonthSelect(sel, withPlaceholder){
+  sel.innerHTML = '';
+  MONTHS.forEach((m,i)=>{
+    const opt = document.createElement('option');
+    opt.value = i+1;
+    opt.textContent = m;
+    sel.appendChild(opt);
+  });
+}
+const planMonthSel = document.getElementById('plan-month');
+const planYearInput = document.getElementById('plan-year');
+const validMonthSel = document.getElementById('valid-month');
+const validYearInput = document.getElementById('valid-year');
+const dashYearInput = document.getElementById('dash-year');
+
+fillMonthSelect(planMonthSel);
+fillMonthSelect(validMonthSel);
+planMonthSel.value = now.getMonth()+1;
+planYearInput.value = now.getFullYear();
+validMonthSel.value = now.getMonth()+1;
+validYearInput.value = now.getFullYear();
+dashYearInput.value = now.getFullYear();
+
+planMonthSel.addEventListener('change', renderPlanTable);
+planYearInput.addEventListener('change', renderPlanTable);
+validMonthSel.addEventListener('change', renderValidationTable);
+validYearInput.addEventListener('change', renderValidationTable);
+dashYearInput.addEventListener('change', renderDashboard);
+
+// ---------- Catégorisation "autre" ----------
+const catSel = document.getElementById('f-categorisation');
+const catAutre = document.getElementById('f-categorisation-autre');
+catSel.addEventListener('change', ()=>{
+  catAutre.style.display = catSel.value === '__autre' ? 'block' : 'none';
+});
+
+// ---------- Période builder ----------
+let periodeSegments = [];
+document.querySelectorAll('input[name=periode-mode]').forEach(r=>{
+  r.addEventListener('change', ()=>{
+    const mode = document.querySelector('input[name=periode-mode]:checked').value;
+    document.getElementById('periode-date-inputs').style.display = mode==='date' ? 'flex' : 'none';
+    document.getElementById('periode-plage-inputs').style.display = mode==='plage' ? 'flex' : 'none';
+  });
+});
+document.getElementById('btn-add-date').addEventListener('click', ()=>{
+  const val = document.getElementById('p-date').value;
+  if(!val){ showToast("Choisissez une date."); return; }
+  periodeSegments.push({type:'date', date:val});
+  document.getElementById('p-date').value = '';
+  renderChips();
+});
+document.getElementById('btn-add-plage').addEventListener('click', ()=>{
+  const s = document.getElementById('p-start').value;
+  const e = document.getElementById('p-end').value;
+  if(!s || !e){ showToast("Choisissez la date de début et de fin."); return; }
+  if(s > e){ showToast("La date de fin doit être après la date de début."); return; }
+  periodeSegments.push({type:'plage', start:s, end:e});
+  document.getElementById('p-start').value = '';
+  document.getElementById('p-end').value = '';
+  renderChips();
+});
+function renderChips(){
+  const wrap = document.getElementById('periode-chips');
+  wrap.innerHTML = '';
+  periodeSegments.forEach((seg,idx)=>{
+    const chip = document.createElement('span');
+    chip.className = 'chip';
+    const label = seg.type === 'date' ? fmtDateShort(seg.date) : `${fmtDateShort(seg.start)} → ${fmtDateShort(seg.end)}`;
+    chip.innerHTML = `<span>${label}</span>`;
+    const rm = document.createElement('button');
+    rm.textContent = '×';
+    rm.addEventListener('click', ()=>{ periodeSegments.splice(idx,1); renderChips(); });
+    chip.appendChild(rm);
+    wrap.appendChild(chip);
+  });
+}
+
+// ---------- Save activity ----------
+document.getElementById('btn-save-activity').addEventListener('click', async ()=>{
+  const titre = document.getElementById('f-titre').value.trim();
+  let categorisation = catSel.value;
+  if(categorisation === '__autre') categorisation = catAutre.value.trim();
+  const structure = document.getElementById('f-structure').value.trim();
+  const resultats = document.getElementById('f-resultats').value.trim();
+  const sources = document.getElementById('f-sources').value.trim();
+  const financement = document.getElementById('f-financement').value.trim();
+  const coutPrevu = document.getElementById('f-cout-prevu').value;
+  const month = parseInt(planMonthSel.value);
+  const year = parseInt(planYearInput.value);
+
+  const missing = [];
+  if(!titre) missing.push('Titre');
+  if(!categorisation) missing.push('Catégorisation');
+  if(!structure) missing.push('Structure responsable');
+  if(!resultats) missing.push('Résultats attendus');
+  if(!sources) missing.push('Sources de vérification');
+  if(!financement) missing.push('Source de financement');
+  if(coutPrevu === '' || coutPrevu === null) missing.push('Coût prévu');
+  if(!periodeSegments.length) missing.push('Période (au moins une date ou plage)');
+  if(!year) missing.push('Année');
+
+  if(missing.length){
+    showToast('Champs obligatoires manquants : ' + missing.join(', '));
+    return;
+  }
+
+  const activity = {
+    id: uid(),
+    year, month,
+    titre, categorisation, structureResponsable: structure,
+    resultatsAttendus: resultats, sourcesVerification: sources,
+    periodeSegments: JSON.parse(JSON.stringify(periodeSegments)),
+    sourceFinancement: financement,
+    coutPrevu: Number(coutPrevu),
+    statut: 'en_attente',
+    coutRealisation: null,
+    raisonNonRealisation: null
+  };
+  activities.push(activity);
+  await saveActivities();
+
+  // reset form
+  document.getElementById('f-titre').value = '';
+  catSel.value = '';
+  catAutre.value = ''; catAutre.style.display='none';
+  document.getElementById('f-structure').value = '';
+  document.getElementById('f-resultats').value = '';
+  document.getElementById('f-sources').value = '';
+  document.getElementById('f-financement').value = '';
+  document.getElementById('f-cout-prevu').value = '';
+  periodeSegments = [];
+  renderChips();
+
+  showToast("Activité enregistrée avec succès.");
+  renderPlanTable();
+});
+
+// ---------- Render Planification table ----------
+function getMonthActivities(month, year){
+  return activities.filter(a => a.month === month && a.year === year);
+}
+function renderPlanTable(){
+  const month = parseInt(planMonthSel.value);
+  const year = parseInt(planYearInput.value);
+  document.getElementById('plan-table-title').textContent =
+    `Planification des activités du mois de ${MONTHS[month-1]} ${year}`;
+
+  const list = getMonthActivities(month, year);
+  const wrap = document.getElementById('plan-table-wrap');
+  if(!list.length){
+    wrap.innerHTML = '<div class="empty-state">Aucune activité planifiée pour ce mois. Utilisez le formulaire ci-dessus pour en ajouter.</div>';
+    return;
+  }
+  let rows = list.map((a,i)=>`
+    <tr>
+      <td>${i+1}</td>
+      <td>${escapeHtml(a.titre)}</td>
+      <td>${escapeHtml(a.categorisation)}</td>
+      <td>${escapeHtml(a.structureResponsable)}</td>
+      <td>${escapeHtml(a.resultatsAttendus).replace(/\n/g,'<br>')}</td>
+      <td>${escapeHtml(a.sourcesVerification)}</td>
+      <td>${formatPeriodeSegments(a.periodeSegments)}</td>
+      <td>${escapeHtml(a.sourceFinancement)}</td>
+      <td class="num">${fmtMoney(a.coutPrevu)}</td>
+      <td><button class="btn-ghost" onclick="deleteActivity('${a.id}')">Supprimer</button></td>
+    </tr>`).join('');
+  wrap.innerHTML = `
+    <div style="overflow-x:auto;">
+    <table>
+      <thead><tr>
+        <th>N°</th><th>Titre</th><th>Catégorisation</th><th>Structure resp.</th>
+        <th>Résultats attendus</th><th>Sources de vérification</th><th>Période</th>
+        <th>Financement</th><th class="num">Coût prévu</th><th></th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    </div>`;
+}
+function escapeHtml(str){
+  if(str===undefined || str===null) return '';
+  return String(str).replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+async function deleteActivity(id){
+  if(!confirm('Supprimer définitivement cette activité ?')) return;
+  activities = activities.filter(a=>a.id!==id);
+  await saveActivities();
+  renderPlanTable();
+  renderValidationTable();
+  renderDashboard();
+}
+
+// ---------- Validation tab ----------
+function renderValidationTable(){
+  const month = parseInt(validMonthSel.value);
+  const year = parseInt(validYearInput.value);
+  const list = getMonthActivities(month, year);
+  const wrap = document.getElementById('valid-table-wrap');
+  if(!list.length){
+    wrap.innerHTML = `<div class="empty-state">Aucune activité planifiée pour ${MONTHS[month-1]} ${year}.</div>`;
+    return;
+  }
+  let rows = list.map((a,i)=>`
+    <tr data-id="${a.id}">
+      <td>${i+1}</td>
+      <td>${escapeHtml(a.titre)}</td>
+      <td>${formatPeriodeSegments(a.periodeSegments)}</td>
+      <td class="num">${fmtMoney(a.coutPrevu)}</td>
+      <td>
+        <select class="statut-select" onchange="onStatutChange(this)">
+          <option value="en_attente" ${a.statut==='en_attente'?'selected':''}>En attente</option>
+          <option value="realisee" ${a.statut==='realisee'?'selected':''}>Réalisée</option>
+          <option value="non_realisee" ${a.statut==='non_realisee'?'selected':''}>Non réalisée</option>
+        </select>
+      </td>
+      <td class="cell-cout">
+        ${a.statut==='realisee' ? `<input type="number" class="inline-cost" value="${a.coutRealisation ?? ''}" placeholder="Coût réalisé">` : ''}
+      </td>
+      <td class="cell-raison">
+        ${a.statut==='non_realisee' ? `<input type="text" class="inline-reason" value="${a.raisonNonRealisation ? escapeHtml(a.raisonNonRealisation) : ''}" placeholder="Raison de non-réalisation">` : ''}
+      </td>
+    </tr>`).join('');
+  wrap.innerHTML = `
+    <div style="overflow-x:auto;">
+    <table>
+      <thead><tr>
+        <th>N°</th><th>Titre</th><th>Période</th><th class="num">Coût prévu</th>
+        <th>Statut</th><th>Coût de réalisation</th><th>Raison (si non réalisée)</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    </div>`;
+}
+function onStatutChange(sel){
+  const tr = sel.closest('tr');
+  const val = sel.value;
+  tr.querySelector('.cell-cout').innerHTML = val==='realisee' ? '<input type="number" class="inline-cost" placeholder="Coût réalisé">' : '';
+  tr.querySelector('.cell-raison').innerHTML = val==='non_realisee' ? '<input type="text" class="inline-reason" placeholder="Raison de non-réalisation">' : '';
+}
+document.getElementById('btn-save-validation').addEventListener('click', async ()=>{
+  const rows = document.querySelectorAll('#valid-table-wrap tbody tr');
+  let incomplete = false;
+  rows.forEach(tr=>{
+    const id = tr.dataset.id;
+    const a = activities.find(x=>x.id===id);
+    if(!a) return;
+    const statut = tr.querySelector('.statut-select').value;
+    a.statut = statut;
+    if(statut === 'realisee'){
+      const costInput = tr.querySelector('.inline-cost');
+      const cost = costInput ? costInput.value : '';
+      if(cost === ''){ incomplete = true; }
+      a.coutRealisation = cost === '' ? null : Number(cost);
+      a.raisonNonRealisation = null;
+    } else if(statut === 'non_realisee'){
+      const reasonInput = tr.querySelector('.inline-reason');
+      const reason = reasonInput ? reasonInput.value.trim() : '';
+      if(reason === ''){ incomplete = true; }
+      a.raisonNonRealisation = reason || null;
+      a.coutRealisation = null;
+    } else {
+      a.coutRealisation = null;
+      a.raisonNonRealisation = null;
+    }
+  });
+  if(incomplete){
+    showToast("Précisez le coût de réalisation ou la raison pour chaque activité marquée.");
+  }
+  await saveActivities();
+  renderValidationTable();
+  showToast("Validations enregistrées.");
+});
+
+// ---------- Dashboard ----------
+function renderDashboard(){
+  const year = parseInt(dashYearInput.value);
+  const kpiWrap = document.getElementById('dash-kpis');
+  const barsWrap = document.getElementById('dash-bars');
+
+  const yearActivities = activities.filter(a=>a.year===year);
+  const totalPrevues = yearActivities.length;
+  const totalRealisees = yearActivities.filter(a=>a.statut==='realisee').length;
+  const totalNonRealisees = yearActivities.filter(a=>a.statut==='non_realisee').length;
+  const tauxGlobal = totalPrevues ? Math.round((totalRealisees/totalPrevues)*100) : 0;
+
+  kpiWrap.innerHTML = `
+    <div class="kpi"><div class="lbl">Activités prévues</div><div class="val">${totalPrevues}</div></div>
+    <div class="kpi"><div class="lbl">Réalisées</div><div class="val" style="color:var(--success);">${totalRealisees}</div></div>
+    <div class="kpi"><div class="lbl">Non réalisées</div><div class="val" style="color:var(--danger);">${totalNonRealisees}</div></div>
+    <div class="kpi"><div class="lbl">Taux de réalisation</div><div class="val">${tauxGlobal}%</div></div>
+  `;
+
+  let barsHtml = '';
+  for(let m=1;m<=12;m++){
+    const list = yearActivities.filter(a=>a.month===m);
+    const prevues = list.length;
+    const real = list.filter(a=>a.statut==='realisee').length;
+    const taux = prevues ? Math.round((real/prevues)*100) : 0;
+    barsHtml += `
+      <div class="bar-row">
+        <div class="month-lbl">${MONTHS[m-1]}</div>
+        <div class="bar-track"><div class="bar-fill" style="width:${taux}%;"></div></div>
+        <div class="pct">${prevues ? taux+'%' : '—'}</div>
+      </div>`;
+  }
+  barsWrap.innerHTML = barsHtml;
+}
+
+// ---------- Excel export ----------
+async function exportPlanExcel(){
+  if(!isAdminLoggedIn){ showToast("Connexion administrateur requise pour exporter."); return; }
+  const month = parseInt(planMonthSel.value);
+  const year = parseInt(planYearInput.value);
+  const list = getMonthActivities(month, year);
+  if(!list.length){ showToast("Aucune activité à exporter pour ce mois."); return; }
+
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('Planification');
+  const headers = ['N°','Titre','Catégorisation','Structure responsable','Résultats attendus','Sources de vérification','Période','Source de financement','Coût prévu (FCFA)'];
+
+  ws.mergeCells('A1:I1');
+  const titleCell = ws.getCell('A1');
+  titleCell.value = `PLANIFICATION DES ACTIVITES DU MOIS DE ${MONTHS[month-1].toUpperCase()} ${year}`;
+  titleCell.font = {bold:true, size:13, color:{argb:'FFFFFFFF'}};
+  titleCell.alignment = {horizontal:'center', vertical:'middle'};
+  titleCell.fill = {type:'pattern', pattern:'solid', fgColor:{argb:'FF0B4F4A'}};
+  ws.getRow(1).height = 24;
+
+  const headerRow = ws.addRow(headers);
+  headerRow.eachCell(c=>{
+    c.font = {bold:true, color:{argb:'FFFFFFFF'}};
+    c.fill = {type:'pattern', pattern:'solid', fgColor:{argb:'FF0B4F4A'}};
+    c.alignment = {horizontal:'center', vertical:'middle', wrapText:true};
+    c.border = {top:{style:'thin'},left:{style:'thin'},bottom:{style:'thin'},right:{style:'thin'}};
+  });
+
+  list.forEach((a,i)=>{
+    const row = ws.addRow([
+      i+1, a.titre, a.categorisation, a.structureResponsable, a.resultatsAttendus,
+      a.sourcesVerification, formatPeriodeSegments(a.periodeSegments), a.sourceFinancement, a.coutPrevu
+    ]);
+    row.eachCell(c=>{
+      c.alignment = {vertical:'top', wrapText:true};
+      c.border = {top:{style:'thin',color:{argb:'FFD6DFDA'}},left:{style:'thin',color:{argb:'FFD6DFDA'}},bottom:{style:'thin',color:{argb:'FFD6DFDA'}},right:{style:'thin',color:{argb:'FFD6DFDA'}}};
+    });
+    row.getCell(9).numFmt = '#,##0';
+    row.getCell(9).alignment = {horizontal:'right', vertical:'top'};
+    if(i % 2 === 1){
+      row.eachCell(c=>{ c.fill = {type:'pattern', pattern:'solid', fgColor:{argb:'FFF3F7F5'}}; });
+    }
+  });
+
+  ws.columns = [
+    {width:5},{width:32},{width:20},{width:20},{width:36},{width:22},{width:22},{width:22},{width:16}
+  ];
+
+  await downloadWorkbook(wb, `Planification_${MONTHS[month-1]}_${year}.xlsx`);
+}
+
+async function exportValidationExcel(){
+  if(!isAdminLoggedIn){ showToast("Connexion administrateur requise pour exporter."); return; }
+  const month = parseInt(validMonthSel.value);
+  const year = parseInt(validYearInput.value);
+  const list = getMonthActivities(month, year);
+  if(!list.length){ showToast("Aucune activité à exporter pour ce mois."); return; }
+
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('Synthèse validation');
+  const headers = ['N°','Titre','Catégorisation','Structure responsable','Résultats attendus','Sources de vérification','Période','Source de financement','Coût prévu (FCFA)','Statut','Coût de réalisation (FCFA)','Raison de non-réalisation'];
+
+  ws.mergeCells('A1:L1');
+  const titleCell = ws.getCell('A1');
+  titleCell.value = `SYNTHESE DE REALISATION DES ACTIVITES DU MOIS DE ${MONTHS[month-1].toUpperCase()} ${year}`;
+  titleCell.font = {bold:true, size:13, color:{argb:'FFFFFFFF'}};
+  titleCell.alignment = {horizontal:'center', vertical:'middle'};
+  titleCell.fill = {type:'pattern', pattern:'solid', fgColor:{argb:'FF0B4F4A'}};
+  ws.getRow(1).height = 24;
+
+  const headerRow = ws.addRow(headers);
+  headerRow.eachCell(c=>{
+    c.font = {bold:true, color:{argb:'FFFFFFFF'}};
+    c.fill = {type:'pattern', pattern:'solid', fgColor:{argb:'FF0B4F4A'}};
+    c.alignment = {horizontal:'center', vertical:'middle', wrapText:true};
+    c.border = {top:{style:'thin'},left:{style:'thin'},bottom:{style:'thin'},right:{style:'thin'}};
+  });
+
+  const statutLabel = {en_attente:'En attente', realisee:'Réalisée', non_realisee:'Non réalisée'};
+  list.forEach((a,i)=>{
+    const row = ws.addRow([
+      i+1, a.titre, a.categorisation, a.structureResponsable, a.resultatsAttendus,
+      a.sourcesVerification, formatPeriodeSegments(a.periodeSegments), a.sourceFinancement, a.coutPrevu,
+      statutLabel[a.statut] || 'En attente',
+      a.coutRealisation ?? '',
+      a.raisonNonRealisation ?? ''
+    ]);
+    row.eachCell(c=>{
+      c.alignment = {vertical:'top', wrapText:true};
+      c.border = {top:{style:'thin',color:{argb:'FFD6DFDA'}},left:{style:'thin',color:{argb:'FFD6DFDA'}},bottom:{style:'thin',color:{argb:'FFD6DFDA'}},right:{style:'thin',color:{argb:'FFD6DFDA'}}};
+    });
+    row.getCell(9).numFmt = '#,##0';
+    row.getCell(9).alignment = {horizontal:'right', vertical:'top'};
+    row.getCell(11).numFmt = '#,##0';
+    row.getCell(11).alignment = {horizontal:'right', vertical:'top'};
+    const statutCell = row.getCell(10);
+    statutCell.alignment = {horizontal:'center', vertical:'top'};
+    if(a.statut === 'realisee'){ statutCell.font = {color:{argb:'FF2E7D5B'}, bold:true}; }
+    else if(a.statut === 'non_realisee'){ statutCell.font = {color:{argb:'FFB23B2E'}, bold:true}; }
+    else { statutCell.font = {color:{argb:'FF8A6D1F'}, bold:true}; }
+    if(i % 2 === 1){
+      row.eachCell(c=>{ if(!c.fill || c.fill.fgColor === undefined) c.fill = {type:'pattern', pattern:'solid', fgColor:{argb:'FFF3F7F5'}}; });
+    }
+  });
+
+  ws.columns = [
+    {width:5},{width:30},{width:18},{width:18},{width:32},{width:20},{width:20},{width:18},{width:15},{width:14},{width:16},{width:28}
+  ];
+
+  await downloadWorkbook(wb, `Synthese_Validation_${MONTHS[month-1]}_${year}.xlsx`);
+}
+
+async function downloadWorkbook(wb, filename){
+  try{
+    const buffer = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buffer], {type:'application/octet-stream'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast("Fichier Excel téléchargé.");
+  }catch(e){
+    showToast("Erreur lors de la génération du fichier Excel.");
+  }
+}
+
+document.getElementById('btn-export-plan').addEventListener('click', exportPlanExcel);
+document.getElementById('btn-export-valid').addEventListener('click', exportValidationExcel);
+
+// ---------- Excel import (planification) ----------
+const IMPORT_HEADERS = ['Mois (ex: Janvier)','Année','Titre','Catégorisation','Structure responsable','Résultats attendus','Sources de vérification','Date début (JJ/MM/AAAA)','Date fin (JJ/MM/AAAA) - vide si date unique','Source de financement','Coût prévu (FCFA)'];
+
+async function downloadImportTemplate(){
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('Modèle import');
+  const headerRow = ws.addRow(IMPORT_HEADERS);
+  headerRow.eachCell(c=>{
+    c.font = {bold:true, color:{argb:'FFFFFFFF'}};
+    c.fill = {type:'pattern', pattern:'solid', fgColor:{argb:'FF0B4F4A'}};
+    c.alignment = {horizontal:'center', vertical:'middle', wrapText:true};
+    c.border = {top:{style:'thin'},left:{style:'thin'},bottom:{style:'thin'},right:{style:'thin'}};
+  });
+  ws.addRow(['Janvier', now.getFullYear(), 'Exemple : Organisation d\'une session de sensibilisation', 'Sensibilisation communautaire', 'ZS DAA', "Rapport de la session\nListe de présence", 'OM, rapport de mission', '15/01/'+now.getFullYear(), '', 'Initiative ISHR', 495000]);
+  ws.columns = [{width:16},{width:10},{width:34},{width:20},{width:20},{width:30},{width:22},{width:20},{width:24},{width:20},{width:16}];
+  await downloadWorkbook(wb, 'Modele_Import_Planification.xlsx');
+}
+document.getElementById('btn-download-template').addEventListener('click', downloadImportTemplate);
+
+function parseMonthValue(v){
+  if(v === null || v === undefined || v === '') return null;
+  if(typeof v === 'number') return (v>=1 && v<=12) ? v : null;
+  const s = String(v).trim().toLowerCase();
+  const idx = MONTHS.findIndex(m=>m.toLowerCase()===s);
+  if(idx>=0) return idx+1;
+  const n = parseInt(s);
+  return (!isNaN(n) && n>=1 && n<=12) ? n : null;
+}
+function parseDateValue(v){
+  if(v === null || v === undefined || v === '') return null;
+  if(v instanceof Date){
+    const y=v.getUTCFullYear(), m=v.getUTCMonth()+1, d=v.getUTCDate();
+    return `${y}-${pad(m)}-${pad(d)}`;
+  }
+  const s = String(v).trim();
+  let m = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/);
+  if(m) return `${m[3]}-${pad(parseInt(m[2]))}-${pad(parseInt(m[1]))}`;
+  m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if(m) return `${m[1]}-${pad(parseInt(m[2]))}-${pad(parseInt(m[3]))}`;
+  return null;
+}
+
+document.getElementById('btn-import-plan').addEventListener('click', ()=>{
+  document.getElementById('import-plan-file').click();
+});
+document.getElementById('import-plan-file').addEventListener('change', async (e)=>{
+  const file = e.target.files[0];
+  e.target.value = '';
+  if(!file) return;
+  const resultEl = document.getElementById('import-result');
+  resultEl.innerHTML = '<div class="loading">Lecture du fichier...</div>';
+
+  try{
+    const buffer = await file.arrayBuffer();
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(buffer);
+    const ws = wb.worksheets[0];
+    if(!ws){ resultEl.innerHTML = '<div class="empty-state">Feuille introuvable dans ce fichier.</div>'; return; }
+
+    let imported = 0;
+    const errors = [];
+    const newActivities = [];
+
+    ws.eachRow((row, rowNumber)=>{
+      if(rowNumber === 1) return; // en-tête
+      const vals = row.values; // index 1-based, vals[0] vide
+      const isEmpty = !vals || vals.slice(1,12).every(v=> v===null || v===undefined || v==='');
+      if(isEmpty) return;
+
+      const month = parseMonthValue(vals[1]);
+      const year = vals[2] ? parseInt(vals[2]) : null;
+      const titre = vals[3] ? String(vals[3]).trim() : '';
+      const categorisation = vals[4] ? String(vals[4]).trim() : '';
+      const structure = vals[5] ? String(vals[5]).trim() : '';
+      const resultats = vals[6] ? String(vals[6]).trim() : '';
+      const sources = vals[7] ? String(vals[7]).trim() : '';
+      const dateDebut = parseDateValue(vals[8]);
+      const dateFin = parseDateValue(vals[9]);
+      const financement = vals[10] ? String(vals[10]).trim() : '';
+      const coutPrevu = (vals[11] !== null && vals[11] !== undefined && vals[11] !== '') ? Number(vals[11]) : null;
+
+      const rowErrors = [];
+      if(!month) rowErrors.push('mois invalide');
+      if(!year) rowErrors.push('année manquante');
+      if(!titre) rowErrors.push('titre manquant');
+      if(!categorisation) rowErrors.push('catégorisation manquante');
+      if(!structure) rowErrors.push('structure manquante');
+      if(!resultats) rowErrors.push('résultats attendus manquants');
+      if(!sources) rowErrors.push('sources de vérification manquantes');
+      if(!dateDebut) rowErrors.push('date de début invalide/manquante');
+      if(!financement) rowErrors.push('source de financement manquante');
+      if(coutPrevu === null || isNaN(coutPrevu)) rowErrors.push('coût prévu invalide');
+
+      if(rowErrors.length){
+        errors.push(`Ligne ${rowNumber} : ${rowErrors.join(', ')}`);
+        return;
+      }
+
+      const periodeSegments = (dateFin && dateFin !== dateDebut)
+        ? [{type:'plage', start:dateDebut, end:dateFin}]
+        : [{type:'date', date:dateDebut}];
+
+      newActivities.push({
+        id: uid(), year, month, titre, categorisation,
+        structureResponsable: structure, resultatsAttendus: resultats,
+        sourcesVerification: sources, periodeSegments,
+        sourceFinancement: financement, coutPrevu,
+        statut:'en_attente', coutRealisation:null, raisonNonRealisation:null
+      });
+      imported++;
+    });
+
+    if(imported){
+      activities = activities.concat(newActivities);
+      await saveActivities();
+      renderPlanTable(); renderValidationTable(); renderDashboard();
+    }
+
+    let html = `<div class="empty-state" style="text-align:left;">
+      <strong>${imported} activité(s) importée(s) avec succès.</strong>`;
+    if(errors.length){
+      html += `<div style="margin-top:8px; color:var(--danger);">${errors.length} ligne(s) ignorée(s) :<br>${errors.map(escapeHtml).join('<br>')}</div>`;
+    }
+    html += `</div>`;
+    resultEl.innerHTML = html;
+    showToast(imported ? `${imported} activité(s) importée(s).` : "Aucune activité valide trouvée dans le fichier.");
+  }catch(err){
+    resultEl.innerHTML = '<div class="empty-state">Erreur de lecture du fichier. Vérifiez qu\'il s\'agit bien d\'un fichier .xlsx conforme au modèle.</div>';
+  }
+});
+
+// ---------- Reset ----------
+document.getElementById('btn-reset').addEventListener('click', async ()=>{
+  if(!confirm("Cette action supprimera définitivement TOUTES les activités enregistrées par tous les utilisateurs. Continuer ?")) return;
+  activities = [];
+  await saveActivities();
+  renderPlanTable(); renderValidationTable(); renderDashboard();
+  showToast("Registre réinitialisé.");
+});
+
+// ---------- Init ----------
+(async function init(){
+  if(!isFirebaseConfigured()){
+    document.getElementById('config-missing-screen').style.display = 'block';
+    document.getElementById('main-app').style.display = 'none';
+    return;
+  }
+  firebase.initializeApp(FIREBASE_CONFIG);
+  db = firebase.firestore();
+
+  document.getElementById('plan-table-wrap').innerHTML = '<div class="loading">Chargement des données...</div>';
+  await loadActivities();
+  await loadAdminConfig();
+  renderAdminBar();
+  renderChips();
+  renderPlanTable();
+  renderValidationTable();
+  renderDashboard();
+  listenActivitiesRealtime();
+})();
+</script>
+</body>
+</html>
